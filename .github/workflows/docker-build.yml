@@ -1,65 +1,84 @@
+# GitHub Actions 工作流：构建和推送 Docker 镜像
+# 此工作流用于自动化构建 FastAPI 应用的 Docker 镜像并推送到 Docker Hub
 name: Build and Push Docker Image
 
+# 触发条件：当代码推送到 main/master 分支或创建标签时触发
 on:
   push:
-    branches: [ main, master ]
-    tags: [ 'v*' ]
+    branches: [ main, master ]  # 推送到主分支时触发
+    tags: [ 'v*' ]              # 推送以 'v' 开头的标签时触发
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master ]  # 对主分支的 PR 时触发（仅构建不推送）
 
+# 环境变量定义
 env:
-  REGISTRY: docker.io
-  IMAGE_NAME: fastapi-demo
+  REGISTRY: docker.io          # Docker 注册表地址
+  IMAGE_NAME: fastapi-demo     # Docker 镜像名称
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest     # 使用最新版本的 Ubuntu 运行器
     
     steps:
+    # 步骤1：检出代码仓库
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4  # 使用官方动作检出代码到运行器
 
+    # 步骤2：设置 Docker Buildx
+    # Buildx 是 Docker 的增强构建工具，支持多平台构建和高级功能
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    # 步骤3：登录到 Docker Hub
+    # 只有在非 PR 事件时才登录（PR 只构建不推送）
     - name: Log in to Docker Hub
       if: github.event_name != 'pull_request'
       uses: docker/login-action@v3
       with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+        registry: ${{ env.REGISTRY }}           # 注册表地址
+        username: ${{ secrets.DOCKER_USERNAME }} # 从 GitHub Secrets 获取用户名
+        password: ${{ secrets.DOCKER_PASSWORD }} # 从 GitHub Secrets 获取密码
 
+    # 步骤4：生成版本号
+    # 自动生成语义化版本号，格式为 v1.0.BUILD_NUMBER
     - name: Generate version number
       id: version
       run: |
         # 生成语义化版本号 v1.0.BUILD_NUMBER
-        VERSION="v1.0.${GITHUB_RUN_NUMBER}"
-        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        VERSION="v1.0.${GITHUB_RUN_NUMBER}"     # 使用 GitHub 运行编号
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT  # 输出版本号供后续步骤使用
         echo "Generated version: ${VERSION}"
 
+    # 步骤5：提取镜像元数据
+    # 根据触发条件生成适当的镜像标签
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
+        # 完整的镜像名称：registry/username/image_name
         images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
         tags: |
+          # 如果是默认分支（main/master），则打上 latest 标签
           type=raw,value=latest,enable={{is_default_branch}}
+          # 如果是默认分支，则打上版本号标签
           type=raw,value=${{ steps.version.outputs.version }},enable={{is_default_branch}}
 
+    # 步骤6：构建和推送 Docker 镜像
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: .
-        file: ./Dockerfile
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        context: .                               # 构建上下文为当前目录
+        file: ./Dockerfile                       # 指定 Dockerfile 路径
+        push: ${{ github.event_name != 'pull_request' }}  # 只有非 PR 时才推送
+        tags: ${{ steps.meta.outputs.tags }}    # 使用生成的标签
+        labels: ${{ steps.meta.outputs.labels }} # 使用生成的标签
+        cache-from: type=gha                     # 从 GitHub Actions 缓存读取
+        cache-to: type=gha,mode=max             # 写入 GitHub Actions 缓存
 
+    # 步骤7：构建总结
+    # 显示构建完成的信息，包括版本号和镜像标签
     - name: Build Summary
-      if: github.event_name != 'pull_request'
+      if: github.event_name != 'pull_request'   # 只有非 PR 时才显示
       run: |
         echo "🚀 构建完成！"
         echo "📦 版本号: ${{ steps.version.outputs.version }}"
