@@ -30,17 +30,22 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
+    - name: Generate version number
+      id: version
+      run: |
+        # 生成语义化版本号 v1.0.BUILD_NUMBER
+        VERSION="v1.0.${GITHUB_RUN_NUMBER}"
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "Generated version: ${VERSION}"
+
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
         images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
         tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
           type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=${{ steps.version.outputs.version }},enable={{is_default_branch}}
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -53,5 +58,9 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    - name: Image digest
-      run: echo ${{ steps.build-and-push.outputs.digest }} 
+    - name: Build Summary
+      if: github.event_name != 'pull_request'
+      run: |
+        echo "🚀 构建完成！"
+        echo "📦 版本号: ${{ steps.version.outputs.version }}"
+        echo "🏷️ 镜像标签: ${{ steps.meta.outputs.tags }}" 

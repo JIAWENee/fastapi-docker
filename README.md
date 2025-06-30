@@ -83,11 +83,16 @@ docker run -p 8000:8000 fastapi-demo
    - 构建Docker镜像
    - 推送到DockerHub
 
-### 镜像标签规则
+### Docker镜像版本控制
 
-- `latest`: 默认分支的最新版本
-- `main`/`master`: 对应分支的最新版本
-- `v1.0.0`: 发布版本标签
+每次推送到main/master分支时，会自动生成版本化的Docker镜像：
+
+- **版本格式**: `v1.0.BUILD_NUMBER`
+  - 例如：`v1.0.1`, `v1.0.2`, `v1.0.3` 等
+
+- **镜像标签**:
+  - `latest`: 最新版本
+  - `v1.0.X`: 对应的版本号
 
 ## 项目结构
 
